@@ -24,10 +24,8 @@ import json
 import random
 import time
 
-from http_helpers import http_get_json, http_post_json
-
-
-DEFAULT_BASE_URL = "https://agimaze.org"
+from http_helpers import http_post_json
+from common import DEFAULT_BASE_URL, make_base_argparser, build_start_payload
 
 
 def run_agent(
@@ -48,27 +46,7 @@ def run_agent(
 
     steps_limit = int(max_steps) if isinstance(max_steps, int) and max_steps > 0 else None
 
-    if path:
-        start_payload = {
-            "path": path,
-            "seed": seed,
-            "client": "api",
-            "agent": agent,
-        }
-        if verbose:
-            print(f"Starting game: path={path}")
-    else:
-        # If no explicit path is given, we fall back to a curated training default.
-        # (Agents used for serious benchmarking should always specify a path.)
-        default_path = "TRAINING/S0-keys/STAGE-01"
-        start_payload = {
-            "path": default_path,
-            "seed": seed,
-            "client": "api",
-            "agent": agent,
-        }
-        if verbose:
-            print(f"Starting game: path={default_path}")
+    start_payload = build_start_payload(path=path, seed=seed, agent=agent, verbose=verbose)
 
     t0 = time.time()
     resp = http_post_json(base + "/api/start", start_payload)
@@ -126,33 +104,20 @@ def run_agent(
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--base-url", type=str, default=DEFAULT_BASE_URL)
-    ap.add_argument("--steps", type=int, default=None, help="max steps override")
-    ap.add_argument("--seed", type=int, default=None, help="optional task RNG seed override")
-    ap.add_argument(
-        "--path",
-        type=str,
-        default=None,
-        help=(
-            "PACKS-relative path including group, e.g. TRAINING/S0-keys/STAGE-01/0005.json, "
-            "CLASSIC/EASY/pits/4x4/0000.json, or a directory like EXTENDED/boat/STAGE-01-4x4"
-        ),
-    )
-    ap.add_argument("--agent", type=str, default="demo_random", help="agent name for logging")
-    ap.add_argument(
-        "--verbose",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="print server messages (default: enabled; use --no-verbose to silence)",
-    )
+    ap = make_base_argparser(default_agent_name="demo_random")
+    ap.add_argument("--steps", type=int, default=None, help="(deprecated) alias for --max-steps")
     args = ap.parse_args()
+
+    # Backward/ergonomic support: prefer --max-steps; allow --steps as alias.
+    max_steps = args.max_steps
+    if max_steps is None and args.steps is not None:
+        max_steps = args.steps
 
     res = run_agent(
         base_url=args.base_url,
         path=args.path,
         seed=args.seed,
-        max_steps=args.steps,
+        max_steps=max_steps,
         agent=args.agent,
         verbose=bool(args.verbose),
     )
