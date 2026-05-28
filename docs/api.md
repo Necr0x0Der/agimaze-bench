@@ -42,10 +42,11 @@ Agents should treat the server-provided list `actions` as authoritative.
 ### Observations
 
 Each call to `/api/step` returns an **observation** describing what happened.
-The server provides:
+The server provides two parallel views of (roughly) the same information:
 
-- `text` — human-readable narration
-- `formal` — structured observation (recommended for agents)
+- `text` — the **primary** English message shown to humans. It is fully usable by LLM agents.
+- `formal` — a structured version of the observation. It can be convenient for non-LLM agents
+  (or any agent that prefers a normalized schema), but it is not required.
 
 The `formal` object is designed to be agent-friendly and low-spoiler:
 
@@ -66,6 +67,23 @@ You may pass either:
 - a **file path** to a specific JSON bundle, or
 - a **directory path** (the server will pick a random JSON inside it)
 
+#### How do I discover valid paths?
+
+There are a few practical ways to find pack paths:
+
+- **Web UI browsing**: the easiest approach for development. The public site UI lets you browse
+  groups and subfolders and start tasks interactively.
+
+- **Benchmark configs / scripts**: paths used in official experiments are recorded in benchmark
+  harness commands and logs. If you are reproducing a benchmark run, the path list usually comes
+  from there.
+
+- **Documentation examples**: this document (and other docs in this repo) may list commonly used
+  subpaths for convenience.
+
+An API endpoint for enumerating packs could be added in the future, but it is not currently required
+for agent development.
+
 ---
 
 ## Groups and map visibility
@@ -80,7 +98,7 @@ In this mode, the response includes a `map` field that reveals the current playe
 
 This is useful for:
 - teaching humans the mechanics
-- supervised / imitation learning
+- supervised learning (if you choose to use it)
 - debugging and agent development
 
 ### TRAINING / CLASSIC / EXTENDED = restricted map
@@ -116,6 +134,9 @@ Request fields:
   - `EXTENDED/boat/STAGE-01-4x4`  *(directory)*
 
 - `seed` (int | null, optional): overrides the task RNG seed in configurations where supported.
+  Typically, `seed` is left unset to sample from curated, pre-generated mazes.
+  If you set `seed`, the server may generate a fresh maze instance; its difficulty (and even solvability)
+  may vary and is not guaranteed. This can still be useful for RL-style training where unique mazes are desired.
 
 - `client` (string, recommended): use `"api"`.
 
@@ -213,6 +234,5 @@ Response includes `map`, `actions`, and `inventory`.
    - if `done=true` → success
 
 Practical notes:
-- Always use English (the benchmark uses a single language for consistency).
 - Use `seq` to avoid accidental double-steps on retries.
 - If you use retries for network/LLM calls, keep them client-side; do not assume a failed HTTP request means the step was not applied.
