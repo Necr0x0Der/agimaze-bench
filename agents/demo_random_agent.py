@@ -105,19 +105,13 @@ def run_agent(
 
 def main() -> None:
     ap = make_base_argparser(default_agent_name="demo_random")
-    ap.add_argument("--steps", type=int, default=None, help="(deprecated) alias for --max-steps")
     args = ap.parse_args()
-
-    # Backward/ergonomic support: prefer --max-steps; allow --steps as alias.
-    max_steps = args.max_steps
-    if max_steps is None and args.steps is not None:
-        max_steps = args.steps
 
     res = run_agent(
         base_url=args.base_url,
         path=args.path,
         seed=args.seed,
-        max_steps=max_steps,
+        max_steps=args.max_steps,
         agent=args.agent,
         verbose=bool(args.verbose),
     )
