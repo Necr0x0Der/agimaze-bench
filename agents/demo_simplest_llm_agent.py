@@ -140,8 +140,8 @@ def run_agent(
         "You are playing a grid maze game. Your goal is to win by collecting the treasure and exiting.\n\n"
         "Rules/description:\n" + desc + "\n\n"
         "Task info:\n" + board_str + "\n\n"
-        "You will receive the result of each action as text and a structured 'formal' object.\n"
-        "Choose one action each step. If the server rejects an action, choose another valid action." 
+        "You will receive the result of each action as text.\n"
+        "Choose one action each step. If the server rejects an action, choose another valid action."
     )
 
     tool = {
@@ -208,17 +208,14 @@ def run_agent(
             continue
 
         text = out.get("text", "")
-        formal = out.get("formal")
         done = bool(out.get("done"))
         last_inv = out.get("inventory")
 
         if verbose:
             print(f"[Step {step}] action={action} text={text}")
-            if formal:
-                print("  formal=", json.dumps(formal, ensure_ascii=False))
 
         messages.append({"role": "assistant", "content": f"I choose: {action}"})
-        messages.append({"role": "user", "content": f"Result: {text}\nformal: {json.dumps(formal, ensure_ascii=False)}"})
+        messages.append({"role": "user", "content": f"Result: {text}"})
 
         if done:
             if verbose:
