@@ -214,7 +214,7 @@ def run_agent(
         last_inv = out.get("inventory")
 
         if verbose:
-            print(f"[Step {step}] action={action} text={text}")
+            print(f"[Step {step}] action={action} text={text} inv={json.dumps(last_inv or {}, ensure_ascii=False)}")
 
         messages.append({"role": "assistant", "content": f"I choose: {action}"})
         messages.append(
