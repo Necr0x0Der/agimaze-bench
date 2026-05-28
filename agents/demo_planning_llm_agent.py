@@ -87,15 +87,7 @@ def openai_chat_completions(
     raise RuntimeError(f"openai_chat_completions failed after {retries} retries: {last_err}")
 
 
-def extract_compact_signal(step_resp: dict) -> str:
-    """Extract a compact signal for the model without using the full formal dump."""
-
-    status = step_resp.get("status")
-    observe = step_resp.get("observe")
-    events = step_resp.get("events") or []
-    inv = step_resp.get("inventory") or {}
-    return f"status={status} observe={observe} events={events} inv={inv}"
-
+# (compact signal helper removed)
 
 def run_agent(
     *,
@@ -260,11 +252,10 @@ def run_agent(
         text = out.get("text", "")
         done = bool(out.get("done"))
         last_inv = out.get("inventory")
-        signal = extract_compact_signal(out)
 
         if verbose:
             print(
-                f"[Step {step}] action={action} reason={reason}\n  text={text}\n  inv={json.dumps(last_inv or {}, ensure_ascii=False)}\n  {signal}"
+                f"[Step {step}] action={action} reason={reason}\n  text={text}\n  inv={json.dumps(last_inv or {}, ensure_ascii=False)}"
             )
 
         # Update history signature
@@ -275,7 +266,7 @@ def run_agent(
         messages.append(
             {
                 "role": "user",
-                "content": f"Result: {text}\nYour inventory: {json.dumps(last_inv or {}, ensure_ascii=False)}\nSignal: {signal}",
+                "content": f"Result: {text}\nYour inventory: {json.dumps(last_inv or {}, ensure_ascii=False)}",
             }
         )
 
