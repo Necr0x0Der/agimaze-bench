@@ -98,7 +98,7 @@ In this mode, the response includes a `map` field that reveals the current playe
 
 This is useful for:
 - teaching humans the mechanics
-- supervised learning (if you choose to use it)
+- supervised learning (this is allowed: it matches the information available to humans in TUTORIAL)
 - debugging and agent development
 
 ### TRAINING / CLASSIC / EXTENDED = restricted map
