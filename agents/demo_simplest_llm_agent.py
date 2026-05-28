@@ -136,10 +136,12 @@ def run_agent(
         b = task_meta["board"]
         board_str = f"board size: n={b.get('n')} rows, m={b.get('m')} cols"
 
+    inv0 = start.get("inventory") or {}
     sys_prompt = (
         "You are playing a grid maze game. Your goal is to win by collecting the treasure and exiting.\n\n"
         "Rules/description:\n" + desc + "\n\n"
         "Task info:\n" + board_str + "\n\n"
+        f"Your inventory: {json.dumps(inv0, ensure_ascii=False)}\n\n"
         "You will receive the result of each action as text.\n"
         "Choose one action each step. If the server rejects an action, choose another valid action."
     )
@@ -215,7 +217,12 @@ def run_agent(
             print(f"[Step {step}] action={action} text={text}")
 
         messages.append({"role": "assistant", "content": f"I choose: {action}"})
-        messages.append({"role": "user", "content": f"Result: {text}"})
+        messages.append(
+            {
+                "role": "user",
+                "content": f"Result: {text}\nYour inventory: {json.dumps(last_inv or {}, ensure_ascii=False)}",
+            }
+        )
 
         if done:
             if verbose:
