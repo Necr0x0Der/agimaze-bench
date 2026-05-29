@@ -26,7 +26,6 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKS = ROOT / "packs"
 
 DEFAULT_BASE_URL = "https://agimaze.org"
 
@@ -46,41 +45,27 @@ def _utc_ts() -> str:
 
 
 def _expand_path(p: str) -> list[str]:
-    """Expand a PACKS-relative path into a list of PACKS-relative json files.
+    """Expand a pack path into a list of concrete bundle paths.
 
-    Local expansion is a convenience for running benchmarks when you have a local checkout
-    of the PACKS directory.
+    This repo does not ship the full pack files, so we cannot enumerate directories.
+    To keep the runner usable with minimal effort, we apply a simple convention:
 
-    When running against a remote server (no local packs), we simply pass the provided
-    path through and let the server validate it.
+    - If `p` ends with `.json` or `.cfg`: treat it as a concrete file path.
+    - Otherwise: treat it as a directory that contains `0000.json`..`0009.json`.
 
-    Rules:
-    - If local packs exist and `p` is a directory: expand to all `*.json` inside (non-recursive).
-    - Otherwise: return `[p]` unchanged.
+    This matches the current training pack layout.
     """
 
     rel = p.strip().lstrip("/").replace("\\", "/")
     if ".." in rel.split("/"):
         raise ValueError(f"bad_path: {p}")
 
-    # Remote-first behavior: if we don't have local packs, do not attempt expansion.
-    if not PACKS.exists():
+    low = rel.lower()
+    if low.endswith(".json") or low.endswith(".cfg"):
         return [rel]
 
-    fs = PACKS / rel
-    if not fs.exists():
-        # Don't fail locally: allow running against remote servers.
-        return [rel]
-
-    if fs.is_file():
-        return [rel]
-
-    files = sorted([x for x in fs.glob("*.json") if x.is_file()])
-    if not files:
-        # Empty directory locally (or non-standard layout) -> let the server decide.
-        return [rel]
-
-    return [str(x.relative_to(PACKS)).replace("\\", "/") for x in files]
+    # Directory -> expand to a fixed set of bundle files.
+    return [f"{rel}/{i:04d}.json" for i in range(10)]
 
 
 def _ensure_parent(path: Path) -> None:
