@@ -48,22 +48,38 @@ def _utc_ts() -> str:
 def _expand_path(p: str) -> list[str]:
     """Expand a PACKS-relative path into a list of PACKS-relative json files.
 
-    - If p points to a file: return [p]
-    - If p points to a directory: return all json files under that directory (non-recursive)
+    Local expansion is a convenience for running benchmarks when you have a local checkout
+    of the PACKS directory.
+
+    When running against a remote server (no local packs), we simply pass the provided
+    path through and let the server validate it.
+
+    Rules:
+    - If local packs exist and `p` is a directory: expand to all `*.json` inside (non-recursive).
+    - Otherwise: return `[p]` unchanged.
     """
 
     rel = p.strip().lstrip("/").replace("\\", "/")
     if ".." in rel.split("/"):
         raise ValueError(f"bad_path: {p}")
 
+    # Remote-first behavior: if we don't have local packs, do not attempt expansion.
+    if not PACKS.exists():
+        return [rel]
+
     fs = PACKS / rel
     if not fs.exists():
-        raise FileNotFoundError(f"not_found: {p}")
+        # Don't fail locally: allow running against remote servers.
+        return [rel]
 
     if fs.is_file():
         return [rel]
 
     files = sorted([x for x in fs.glob("*.json") if x.is_file()])
+    if not files:
+        # Empty directory locally (or non-standard layout) -> let the server decide.
+        return [rel]
+
     return [str(x.relative_to(PACKS)).replace("\\", "/") for x in files]
 
 
