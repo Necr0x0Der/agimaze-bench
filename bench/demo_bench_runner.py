@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Benchmark/auto-test runner for baseline agents.
+"""Demo benchmark runner for baseline agents.
 
-Runs an agent over a set of PACKS paths (files or folders) and logs results.
+This is a small helper script (not a full benchmark suite).
+
+It runs an agent over a set of pack paths (files or folders) and writes JSONL logs
+(one episode per line).
 
 Examples:
-  python3 bench/benchmark_runner.py --agent random --path CLASSIC/EASY/pits/4x4 --out logs/bench_random.jsonl
+  python3 bench/demo_bench_runner.py --agent random --path CLASSIC/EASY/pits/4x4 \
+    --repeats 3 --out logs/bench_random.jsonl
 
-  python3 bench/benchmark_runner.py --agent simplest_llm --path TRAINING/S0-keys/STAGE-01/0000.json --model openrouter/auto
+  python3 bench/demo_bench_runner.py --agent simplest_llm --path TRAINING/S0-keys/STAGE-01/0000.json \
+    --model openrouter/auto --verbose
 
 Notes:
 - Paths are PACKS-relative and must include the group as the first segment.
-- If a --path is a directory, we expand it to all *.json files inside (sorted).
-- Logging is JSONL: one record per episode.
+- If a --path is a directory, we expand it by convention into 0000.json..0009.json.
 """
 
 from __future__ import annotations
