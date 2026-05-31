@@ -24,7 +24,6 @@ Examples:
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import random
@@ -138,12 +137,11 @@ def run_agent(
 
     inv0 = start.get("inventory") or {}
     sys_prompt = (
-        "You are playing a grid maze game. Your goal is to win by collecting the treasure and exiting.\n\n"
-        "Rules/description:\n" + desc + "\n\n"
-        "Task info:\n" + board_str + "\n\n"
+        desc + "\n\n"
+        "Current maze info:\n" + board_str + "\n\n"
         f"Your inventory: {json.dumps(inv0, ensure_ascii=False)}\n\n"
-        "You will receive the result of each action as text.\n"
-        "Choose one action each step. If the server rejects an action, choose another valid action."
+        "Choose one action each step.\n"
+        "You will receive the result of each action as text."
     )
 
     tool = {

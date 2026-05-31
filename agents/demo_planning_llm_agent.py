@@ -28,7 +28,6 @@ from __future__ import annotations
 import json
 import os
 import random
-import re
 import socket
 import time
 import urllib.request
@@ -138,12 +137,11 @@ def run_agent(
         board_str = f"board size: n={b.get('n')} rows, m={b.get('m')} cols"
 
     sys_prompt = (
-        "You are playing a grid maze game. Your goal is to win by collecting the treasure and exiting.\n\n"
-        "Rules/description:\n" + desc + "\n\n"
-        "Task info:\n" + board_str + "\n\n"
+        desc + "\n\n"
+        "Current maze info:\n" + board_str + "\n\n"
         f"Your inventory: {json.dumps(inv0, ensure_ascii=False)}\n\n"
         "Each step, you will receive a text result and an inventory snapshot.\n"
-        "Plan briefly, then choose exactly one valid action."  # keep it short
+        "Plan briefly, then choose exactly one valid action."
     )
 
     tool = {
@@ -175,7 +173,7 @@ def run_agent(
             + [
                 {
                     "role": "user",
-                    "content": "PLAN: briefly describe your current hypothesis/strategy for the next few steps.",
+                    "content": "PLAN: make notes for yourself what tiles have been explored and what actions should be done. Use your answer to this message as your working memory.",
                 }
             ],
         }
