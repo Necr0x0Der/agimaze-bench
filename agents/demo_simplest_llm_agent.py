@@ -126,8 +126,9 @@ def run_agent(
         ms = task_meta.get("max_steps")
         steps_limit = int(ms) if isinstance(ms, int) and ms > 0 else 200
 
+    session_info = f"session={sid} max_steps={steps_limit} actions={actions}"
     if verbose:
-        print(f"session={sid} max_steps={steps_limit} actions={actions}")
+        print(session_info)
 
     # System prompt
     board_str = ""
@@ -136,9 +137,10 @@ def run_agent(
         board_str = f"board size: n={b.get('n')} rows, m={b.get('m')} cols"
 
     inv0 = start.get("inventory") or {}
+    # Note: session id is added to make prompts different on repeated runs
     sys_prompt = (
         desc + "\n\n"
-        "Current maze info:\n" + board_str + "\n\n"
+        "Current maze info:\n" + board_str + " " + session_info + "\n\n"
         f"Your inventory: {json.dumps(inv0, ensure_ascii=False)}\n\n"
         "Choose one action each step.\n"
         "You will receive the result of each action as text."
