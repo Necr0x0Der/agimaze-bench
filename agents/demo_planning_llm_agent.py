@@ -210,9 +210,6 @@ def run_agent(
                 return a, "(parsed from text)"
         return random.choice(list(actions)), "(random fallback)"
 
-    # crude loop detection: last few (action,status,observe)
-    hist_sig: list[tuple[str, str, str]] = []
-
     done = False
     steps = 0
     last_inv = start.get("inventory")
@@ -224,15 +221,6 @@ def run_agent(
         plan = llm_plan()
         if plan:
             messages.append({"role": "assistant", "content": "NOTES: " + plan})
-
-        # Loop nudge
-        if len(hist_sig) >= 6 and len(set(hist_sig[-6:])) <= 2:
-            messages.append(
-                {
-                    "role": "user",
-                    "content": "You seem to be looping. Change strategy: explore a different direction and avoid repeating the last pattern.",
-                }
-            )
 
         # ACT phase
         action, reason = llm_act()
@@ -255,9 +243,6 @@ def run_agent(
             print(
                 f"[Step {step}] action={action} reason={reason}\n  text={text}\n  inv={json.dumps(last_inv or {}, ensure_ascii=False)}"
             )
-
-        # Update history signature
-        hist_sig.append((action, str(out.get("status")), str(out.get("observe"))))
 
         # Feed back to model
         messages.append({"role": "assistant", "content": f"I choose action: {action}. Reason: {reason}"})
