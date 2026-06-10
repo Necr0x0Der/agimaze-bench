@@ -142,4 +142,32 @@ The tables below also record random-agent success statistics:
 
 ## Baseline benchmark results
 
-(TODO) Add summary runs for baseline agents (random / simplest LLM / planning LLM) on selected subsets.
+### Benchmarking simple agents
+
+Simple demo LLM agents include [vanilla LLM agent](../agents/demo_simplest_llm_agent.py), which receive only observations in the prompts, and [planning LLM agent](../agents/demo_planning_llm_agent.py), which is allowed to put notes (one message per step) into its prompt. Both agents can be run with different backend LLMs. But in all cases, they cannot successfully pass all the mazes in the TRAINING set with the soft restriction on the number of steps. Thus, we selected several groups of mazes from TRAINING for testing. Statistics are collected only for the vanilla (simplest) LLM agent with cheap LLMs.
+
+The following table lists several agents. `S:` means "simple", `P:` means planning. The LLMs are GPT-4o-mini (gpt4om), GPT-5 Mini (gpt5m), Gemini 3.1 Flash Light (gem31fl), MiniMax M2.7 (minimax27), GPT-5.5 (gpt55). Cells contain success rates in percents 
+
+| Stage | random | S:gpt4om | S:gpt5m | S:gem31fl | S:minimax27 |
+|------:|------------:|------------:|------------:|------------:|------------:|
+|S0-01|24.3 (4.5)|11 (4)| 65 (37)|79 (43)|28 (11)|
+|S0-02|16.7 (2.2)|4 (1)||71 (40)|28 (9)|
+|S0-03|9.2 (1.3)|4 (0)||39 (13)|17 (6)|
+|S1-01|22.3 (4.3)|2 (0)||51 (17)|8 (3)|
+|S2-01|24.8 (4.8)|23 (6)||42 (10)|34 (8)|
+|S3-01|20.6 (4.5)|10 (0)|3(1)|27 (15)|9 (3)|
+|S3-03|3.2 (0.4)|0||1 (0)|0|
+
+Results of non-massive tests on S3-full STAGE-03 (S3-03):
+| Agent | Result |
+|----------:|------------:|
+| S:gpt55 |1/3|
+| P:gpt55 |3/5|
+| P:gpt4om |0/10|
+| P:gpt5m |0/10|
+| P:gem31fl |0/10|
+
+Additional results:
+* S:GLM-4.7-flash: 12%(0%) on S0-3, 0% on S3-3
+* P:GPT-5.5: 1/3 on S3-6
+
