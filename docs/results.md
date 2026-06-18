@@ -146,17 +146,17 @@ The tables below also record random-agent success statistics:
 
 Simple demo LLM agents include [vanilla LLM agent](../agents/demo_simplest_llm_agent.py), which receive only observations in the prompts, and [planning LLM agent](../agents/demo_planning_llm_agent.py), which is allowed to put notes (one message per step) into its prompt. Both agents can be run with different backend LLMs. But in all cases, they cannot successfully pass all the mazes in the TRAINING set with the soft restriction on the number of steps. Thus, we selected several groups of mazes from TRAINING for testing. Statistics are collected only for the vanilla (simplest) LLM agent with cheap LLMs.
 
-The following table lists several agents. `S:` means "simple", `P:` means planning. The LLMs are GPT-4o-mini (gpt4om), GPT-5 Mini (gpt5m), Gemini 3.1 Flash Light (gem31fl), MiniMax M2.7 (minimax27), GPT-5.5 (gpt55). Cells contain success rates in percents 
+The following table lists several agents. `S:` means "simple", `P:` means planning. The LLMs are GPT-4o-mini (gpt4om), GPT-5 Mini (gpt5m), Gemini 3.1 Flash Light (gem31fl), MiniMax M2.7 (minimax27), GPT-5.5 (gpt55). Cells contain success rates in percents for the soft threshold (2x) on the number of steps and for the harder threshold (which is close for the number of steps enough in average for humans but still somewhat soft).
 
 | Stage | random | S:gpt4om | S:gpt5m | S:gem31fl | S:minimax27 |
 |------:|------------:|------------:|------------:|------------:|------------:|
-|S0-01|24.3 (4.5)|11 (4)| 65 (37)|79 (43)|28 (11)|
-|S0-02|16.7 (2.2)|4 (1)||71 (40)|28 (9)|
-|S0-03|9.2 (1.3)|4 (0)||39 (13)|17 (6)|
-|S1-01|22.3 (4.3)|2 (0)||51 (17)|8 (3)|
-|S2-01|24.8 (4.8)|23 (6)||42 (10)|34 (8)|
-|S3-01|20.6 (4.5)|10 (0)|3(1)|27 (15)|9 (3)|
-|S3-03|3.2 (0.4)|0||1 (0)|0|
+|S0-01|24.3 (4.5)|11 (4)|65 (37)|79 (43)|28 (11)|
+|S0-02|16.7 (2.2)|4 (1)|49 (26)|71 (40)|28 (9)|
+|S0-03|9.2 (1.3)|4 (0)|8 (3)|39 (13)|17 (6)|
+|S1-01|22.3 (4.3)|2 (0)|53(36)|51 (17)|8 (3)|
+|S2-01|24.8 (4.8)|23 (6)|36(15)|42 (10)|34 (8)|
+|S3-01|20.6 (4.5)|10 (0)|25 (4)|27 (15)|9 (3)|
+|S3-03|3.2 (0.4)|0|3(1)|1 (0)|0|
 
 Results of non-massive tests on S3-full STAGE-03 (S3-03):
 | Agent | Result |
