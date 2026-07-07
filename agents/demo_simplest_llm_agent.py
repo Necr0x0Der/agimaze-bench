@@ -187,14 +187,14 @@ def run_agent(
         if tcs:
             args_json = tcs[0]["function"]["arguments"]
             data = json.loads(args_json) if isinstance(args_json, str) else args_json
-            return str(data["action"])
+            return str(data["action"]), str(data["reason"])
 
         # fallback: parse plain text
         txt = (msg.get("content") or "").strip().lower()
         for a in actions:
             if a in txt:
-                return a
-        return random.choice(list(actions))
+                return a, f"(WARNING tools are not used, parsed from text): {txt}"
+        return random.choice(list(actions)), f"(ERROR no action selected): {txt}"
 
     done = False
     steps = 0
@@ -202,7 +202,7 @@ def run_agent(
 
     for step in range(1, int(steps_limit) + 1):
         steps = step
-        action = choose_action()
+        action, reason = choose_action()
 
         out = http_post_json(f"{srv}/api/step", {"id": sid, "action": action, "seq": step})
 
@@ -219,7 +219,7 @@ def run_agent(
         last_inv = out.get("inventory")
 
         if verbose:
-            print(f"[Step {step}] action={action} text={text} inv={json.dumps(last_inv or {}, ensure_ascii=False)}")
+            print(f"[Step {step}] action={action} | reason={reason} \n response={text} inv={json.dumps(last_inv or {}, ensure_ascii=False)}")
 
         messages.append({"role": "assistant", "content": f"I choose: {action}"})
         messages.append(
