@@ -191,9 +191,13 @@ def run_agent(
 
         # fallback: parse plain text
         txt = (msg.get("content") or "").strip().lower()
+        reason = f"(WARNING tools are not used, parsed from text): {txt}"
+        for a in actions:
+            if f"action: {a}" in txt:
+                return a, reason
         for a in actions:
             if a in txt:
-                return a, f"(WARNING tools are not used, parsed from text): {txt}"
+                return a, reason
         return random.choice(list(actions)), f"(ERROR no action selected): {txt}"
 
     done = False
