@@ -210,10 +210,14 @@ def run_agent(
 
         # fallback
         txt = (msg.get("content") or "").strip().lower()
+        reason = f"(NO TOOL USE, parsed from text) {txt}"
+        for a in actions:
+            if f"action: {a}" in txt:
+                return a, reason
         for a in actions:
             if a in txt:
-                return a, "(parsed from text)"
-        return random.choice(list(actions)), "(random fallback)"
+                return a, reason
+        return random.choice(list(actions)), f"(NO ACTION SELECTED, random fallback) {txt}"
 
     done = False
     steps = 0
@@ -246,7 +250,13 @@ def run_agent(
 
         if verbose:
             print(
-                f"[Step {step}] action={action} reason={reason}\n  text={text}\n  inv={json.dumps(last_inv or {}, ensure_ascii=False)}"
+                f'''[Step {step}]
+============ PLANNING STEP ============
+{plan}
+============ ACTING STEP ============
+action={action} reason={reason}
+response={text}
+inv={json.dumps(last_inv or {}, ensure_ascii=False)}'''
             )
 
         # Feed back to model
