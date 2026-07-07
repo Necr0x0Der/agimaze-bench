@@ -123,6 +123,8 @@ def main() -> None:
 
     # When verbose is disabled, show a lightweight per-trial progress indicator by
     # capturing agent stdout and parsing step counters from its logs.
+    real_stdout = sys.stdout
+
     class _ProgressSink:
         def __init__(self, *, label: str):
             self.label = label
@@ -172,8 +174,8 @@ def main() -> None:
             else:
                 msg = f"{self.label} step {self.cur_step}"
             # Clear to end of line to avoid leftovers.
-            sys.stdout.write("\r" + msg + " " * 10)
-            sys.stdout.flush()
+            real_stdout.write("\r" + msg + " " * 10)
+            real_stdout.flush()
 
     def _run_agent_with_progress(*, payload: dict[str, Any], label: str) -> dict:
         if args.verbose:
@@ -225,12 +227,12 @@ def main() -> None:
                     ok = bool(rec.get("success"))
                     steps = rec.get("steps")
                     if not args.verbose:
-                        sys.stdout.write("\r" + " " * 120 + "\r")
+                        real_stdout.write("\r" + " " * 120 + "\r")
                     print(f"[{idx:04d}/{total_eps:04d}] {'OK ' if ok else 'FAIL'} rep={r}/{args.repeats} steps={steps} {rel}")
                 except Exception as e:
                     rec.update({"success": False, "error": repr(e)})
                     if not args.verbose:
-                        sys.stdout.write("\r" + " " * 120 + "\r")
+                        real_stdout.write("\r" + " " * 120 + "\r")
                     print(f"[{idx:04d}/{total_eps:04d}] ERROR rep={r}/{args.repeats} {rel}: {e}")
                     if args.fail_fast:
                         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
