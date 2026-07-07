@@ -24,10 +24,12 @@ import argparse
 import importlib
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+import contextlib
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -119,6 +121,69 @@ def main() -> None:
     total_eps = len(targets) * int(args.repeats)
     print(f"agent={args.agent} targets={len(targets)} repeats={args.repeats} episodes={total_eps} out={out_path}")
 
+    # When verbose is disabled, show a lightweight per-trial progress indicator by
+    # capturing agent stdout and parsing step counters from its logs.
+    class _ProgressSink:
+        def __init__(self, *, label: str):
+            self.label = label
+            self._buf = ""
+            self.max_steps: int | None = None
+            self.cur_step: int = 0
+
+        def write(self, s: str) -> int:
+            self._buf += s
+            while "\n" in self._buf:
+                line, self._buf = self._buf.split("\n", 1)
+                self._handle_line(line)
+            return len(s)
+
+        def flush(self) -> None:
+            if self._buf:
+                self._handle_line(self._buf)
+                self._buf = ""
+
+        def _handle_line(self, line: str) -> None:
+            # Try to learn max_steps from lines like: "session=... max_steps=200 ..."
+            if self.max_steps is None:
+                m = re.search(r"\bmax_steps=(\d+)\b", line)
+                if m:
+                    try:
+                        self.max_steps = int(m.group(1))
+                    except Exception:
+                        pass
+
+            # Step patterns:
+            # - simplest/planning agents: "[Step N] ..."
+            # - random agent: "[001] ..."
+            m = re.match(r"^\[Step\s+(\d+)\]", line)
+            if not m:
+                m = re.match(r"^\[(\d{1,4})\]", line)
+            if m:
+                try:
+                    self.cur_step = int(m.group(1))
+                except Exception:
+                    return
+
+            self._render()
+
+        def _render(self) -> None:
+            if self.max_steps:
+                msg = f"{self.label} step {self.cur_step}/{self.max_steps}"
+            else:
+                msg = f"{self.label} step {self.cur_step}"
+            # Clear to end of line to avoid leftovers.
+            sys.stdout.write("\r" + msg + " " * 10)
+            sys.stdout.flush()
+
+    def _run_agent_with_progress(*, payload: dict[str, Any], label: str) -> dict:
+        if args.verbose:
+            return run_agent(**payload)
+        sink = _ProgressSink(label=label)
+        with contextlib.redirect_stdout(sink):
+            # We still run the agent with verbose=True so that it emits step logs
+            # that we can parse for progress.
+            return run_agent(**payload)
+
     with out_path.open("a", encoding="utf-8") as f:
         idx = 0
         for rel in targets:
@@ -130,7 +195,9 @@ def main() -> None:
                     "seed": args.seed,
                     "max_steps": args.max_steps,
                     "agent": args.agent,
-                    "verbose": bool(args.verbose),
+                    # We keep agent verbosity enabled; when runner --verbose is off,
+                    # output is captured and used only for progress parsing.
+                    "verbose": True,
                 }
                 if args.model is not None:
                     payload["model"] = args.model
@@ -148,16 +215,22 @@ def main() -> None:
                     "repeats": int(args.repeats),
                 }
 
+                label = f"[{idx:04d}/{total_eps:04d}] rep={r}/{args.repeats}"
+
                 try:
-                    res = run_agent(**payload)
+                    res = _run_agent_with_progress(payload=payload, label=label)
                     if not isinstance(res, dict):
                         res = {"result": res}
                     rec.update(res)
                     ok = bool(rec.get("success"))
                     steps = rec.get("steps")
+                    if not args.verbose:
+                        sys.stdout.write("\r" + " " * 120 + "\r")
                     print(f"[{idx:04d}/{total_eps:04d}] {'OK ' if ok else 'FAIL'} rep={r}/{args.repeats} steps={steps} {rel}")
                 except Exception as e:
                     rec.update({"success": False, "error": repr(e)})
+                    if not args.verbose:
+                        sys.stdout.write("\r" + " " * 120 + "\r")
                     print(f"[{idx:04d}/{total_eps:04d}] ERROR rep={r}/{args.repeats} {rel}: {e}")
                     if args.fail_fast:
                         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
