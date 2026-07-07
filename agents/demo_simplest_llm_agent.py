@@ -136,11 +136,16 @@ def run_agent(
         b = task_meta["board"]
         board_str = f"board size: n={b.get('n')} rows, m={b.get('m')} cols"
 
+    start_str = ""
+    if task_meta.get("start"):
+        s0 = task_meta["start"]
+        start_str = f"start position (row,col): ({s0.get('row')},{s0.get('col')})"
+
     inv0 = start.get("inventory") or {}
     # Note: session id is added to make prompts different on repeated runs
     sys_prompt = (
         desc + "\n\n"
-        "Current maze info:\n" + board_str + " " + session_info + "\n\n"
+        "Current maze info:\n" + board_str + "\n" + start_str + "\n" + session_info + "\n\n"
         f"Your inventory: {json.dumps(inv0, ensure_ascii=False)}\n\n"
         "Choose one action each step.\n"
         "You will receive the result of each action as text."

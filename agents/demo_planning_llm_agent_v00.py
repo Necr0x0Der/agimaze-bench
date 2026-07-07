@@ -136,14 +136,9 @@ def run_agent(
         b = task_meta["board"]
         board_str = f"board size: n={b.get('n')} rows, m={b.get('m')} cols"
 
-    start_str = ""
-    if task_meta.get("start"):
-        s0 = task_meta["start"]
-        start_str = f"start position (row,col): ({s0.get('row')},{s0.get('col')})"
-
     sys_prompt = (
         desc + "\n\n"
-        "Current maze info:\n" + board_str + "\n" + start_str + "\n\n"
+        "Current maze info:\n" + board_str + "\n\n"
         f"Your inventory: {json.dumps(inv0, ensure_ascii=False)}\n\n"
         "Each step, you will receive a text result and an inventory snapshot.\n"
         "Plan briefly, then choose exactly one valid action."

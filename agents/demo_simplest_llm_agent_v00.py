@@ -1,25 +1,24 @@
 #!/usr/bin/env python3
-"""Planning LLM baseline agent (OpenAI-compatible / OpenRouter).
+"""Minimal LLM baseline agent (OpenAI-compatible / OpenRouter).
 
-This agent is both:
-- a demonstration of building an agent on top of the **public AGI Maze HTTP API**, and
-- a practical baseline for evaluating vanilla LLM behavior.
+This script is a *demo* and a practical baseline for testing vanilla LLMs against
+**the public AGI Maze HTTP API**.
 
 It:
 - fetches the global game description via `GET /api/description`
 - starts an episode via `POST /api/start`
-- runs a 2-phase LLM loop: PLAN (free text) then ACT (tool call)
-- executes the chosen action via `POST /api/step`
+- repeatedly calls an LLM to choose the next `action`
+- executes that action via `POST /api/step`
 
 Environment variables:
 - `OPENAI_API_KEY` or `OPENROUTER_API_KEY`
 - Optional: `OPENAI_BASE_URL` / `OPENROUTER_BASE_URL` (defaults to OpenRouter)
 
 Examples:
-  OPENROUTER_API_KEY=... python3 agents/demo_planning_llm_agent.py \
+  OPENROUTER_API_KEY=... python3 agents/demo_simplest_llm_agent.py \
     --path TRAINING/S0-keys/STAGE-01/0000.json --model openrouter/auto
 
-  OPENROUTER_API_KEY=... python3 agents/demo_planning_llm_agent.py \
+  OPENROUTER_API_KEY=... python3 agents/demo_simplest_llm_agent.py \
     --path CLASSIC/EASY/pits/4x4 --model openrouter/auto --max-steps 200
 """
 
@@ -86,8 +85,6 @@ def openai_chat_completions(
     raise RuntimeError(f"openai_chat_completions failed after {retries} retries: {last_err}")
 
 
-# (compact signal helper removed)
-
 def run_agent(
     *,
     base_url: str = DEFAULT_BASE_URL,
@@ -95,10 +92,12 @@ def run_agent(
     seed: int | None = None,
     model: str = "openrouter/auto",
     max_steps: int | None = None,
-    temperature: float = 0.2,
-    agent: str = "demo_planning_llm",
+    agent: str = "demo_simplest_llm",
     verbose: bool = True,
 ) -> dict:
+    """Run one episode and return a result dict suitable for JSON logging."""
+
+    # LLM endpoint/key
     api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         raise SystemExit("Missing OPENAI_API_KEY or OPENROUTER_API_KEY")
@@ -111,6 +110,7 @@ def run_agent(
 
     srv = base_url.rstrip("/")
 
+    # Global English description
     desc = http_get_json(f"{srv}/api/description").get("description", "")
 
     start_payload = build_start_payload(path=path, seed=seed, agent=agent, verbose=verbose)
@@ -119,7 +119,6 @@ def run_agent(
 
     actions = start.get("actions") or ["up", "down", "left", "right"]
     task_meta = start.get("task_meta") or {}
-    inv0 = start.get("inventory") or {}
 
     # Determine step budget
     steps_limit = int(max_steps) if isinstance(max_steps, int) and max_steps > 0 else None
@@ -127,8 +126,9 @@ def run_agent(
         ms = task_meta.get("max_steps")
         steps_limit = int(ms) if isinstance(ms, int) and ms > 0 else 200
 
+    session_info = f"session={sid} max_steps={steps_limit} actions={actions}"
     if verbose:
-        print(f"session={sid} max_steps={steps_limit} actions={actions}")
+        print(session_info)
 
     # System prompt
     board_str = ""
@@ -136,17 +136,14 @@ def run_agent(
         b = task_meta["board"]
         board_str = f"board size: n={b.get('n')} rows, m={b.get('m')} cols"
 
-    start_str = ""
-    if task_meta.get("start"):
-        s0 = task_meta["start"]
-        start_str = f"start position (row,col): ({s0.get('row')},{s0.get('col')})"
-
+    inv0 = start.get("inventory") or {}
+    # Note: session id is added to make prompts different on repeated runs
     sys_prompt = (
         desc + "\n\n"
-        "Current maze info:\n" + board_str + "\n" + start_str + "\n\n"
+        "Current maze info:\n" + board_str + " " + session_info + "\n\n"
         f"Your inventory: {json.dumps(inv0, ensure_ascii=False)}\n\n"
-        "Each step, you will receive a text result and an inventory snapshot.\n"
-        "Plan briefly, then choose exactly one valid action."
+        "Choose one action each step.\n"
+        "You will receive the result of each action as text."
     )
 
     tool = {
@@ -165,55 +162,34 @@ def run_agent(
         },
     }
 
-    messages: list[dict] = [
+    messages = [
         {"role": "system", "content": sys_prompt},
-        {"role": "user", "content": "Game started. PLAN then ACT."},
+        {"role": "user", "content": "Game started. Choose your first action."},
     ]
 
-    def llm_plan() -> str:
+    def choose_action() -> str:
         payload = {
             "model": model,
-            "temperature": float(temperature),
-            "messages": messages
-            + [
-                {
-                    "role": "user",
-                    "content": "PLAN: make notes for yourself what tiles have been explored and what actions should be done. Use your answer to this message as your working memory.",
-                }
-            ],
-        }
-        resp = openai_chat_completions(base_url=llm_base_url, api_key=api_key, payload=payload)
-        return (resp["choices"][0]["message"].get("content") or "").strip()
-
-    def llm_act() -> tuple[str, str]:
-        payload = {
-            "model": model,
-            "temperature": float(temperature),
-            "messages": messages
-            + [
-                {
-                    "role": "user",
-                    "content": "ACT: choose exactly one action.",
-                }
-            ],
+            "messages": messages,
             "tools": [tool],
             "tool_choice": {"type": "function", "function": {"name": "act"}},
         }
         resp = openai_chat_completions(base_url=llm_base_url, api_key=api_key, payload=payload)
         msg = resp["choices"][0]["message"]
 
+        # tool call
         tcs = msg.get("tool_calls") or []
         if tcs:
             args_json = tcs[0]["function"]["arguments"]
             data = json.loads(args_json) if isinstance(args_json, str) else args_json
-            return str(data.get("action")), str(data.get("reason") or "")
+            return str(data["action"])
 
-        # fallback
+        # fallback: parse plain text
         txt = (msg.get("content") or "").strip().lower()
         for a in actions:
             if a in txt:
-                return a, "(parsed from text)"
-        return random.choice(list(actions)), "(random fallback)"
+                return a
+        return random.choice(list(actions))
 
     done = False
     steps = 0
@@ -221,22 +197,15 @@ def run_agent(
 
     for step in range(1, int(steps_limit) + 1):
         steps = step
+        action = choose_action()
 
-        # PLAN phase
-        plan = llm_plan()
-        if plan:
-            messages.append({"role": "assistant", "content": "NOTES: " + plan})
-
-        # ACT phase
-        action, reason = llm_act()
         out = http_post_json(f"{srv}/api/step", {"id": sid, "action": action, "seq": step})
 
+        # If server returns an error (e.g. bad_action), feed it back and continue.
         if out.get("error"):
             if verbose:
-                print(
-                    f"[Step {step}] action={action} SERVER_ERROR={out.get('error')} payload={json.dumps(out, ensure_ascii=False)}"
-                )
-            messages.append({"role": "assistant", "content": f"I choose action: {action}. Reason: {reason}"})
+                print(f"[Step {step}] action={action} SERVER_ERROR={out.get('error')} payload={json.dumps(out, ensure_ascii=False)}")
+            messages.append({"role": "assistant", "content": f"I choose: {action}"})
             messages.append({"role": "user", "content": f"Server error: {json.dumps(out, ensure_ascii=False)}"})
             continue
 
@@ -245,12 +214,9 @@ def run_agent(
         last_inv = out.get("inventory")
 
         if verbose:
-            print(
-                f"[Step {step}] action={action} reason={reason}\n  text={text}\n  inv={json.dumps(last_inv or {}, ensure_ascii=False)}"
-            )
+            print(f"[Step {step}] action={action} text={text} inv={json.dumps(last_inv or {}, ensure_ascii=False)}")
 
-        # Feed back to model
-        messages.append({"role": "assistant", "content": f"I choose action: {action}. Reason: {reason}"})
+        messages.append({"role": "assistant", "content": f"I choose: {action}"})
         messages.append(
             {
                 "role": "user",
@@ -272,9 +238,8 @@ def run_agent(
 
 
 def main() -> None:
-    ap = make_base_argparser(default_agent_name="demo_planning_llm")
+    ap = make_base_argparser(default_agent_name="demo_simplest_llm")
     ap.add_argument("--model", type=str, default="openrouter/auto")
-    ap.add_argument("--temperature", type=float, default=0.2)
     args = ap.parse_args()
 
     res = run_agent(
@@ -283,7 +248,6 @@ def main() -> None:
         seed=args.seed,
         model=args.model,
         max_steps=args.max_steps,
-        temperature=float(args.temperature),
         agent=args.agent,
         verbose=bool(args.verbose),
     )
