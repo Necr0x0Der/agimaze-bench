@@ -43,6 +43,7 @@ AGENT_MODULES = {
     "random": "demo_random_agent",
     "simplest_llm": "demo_simplest_llm_agent",
     "planning_llm": "demo_planning_llm_agent",
+    "worldmodel_llm": "worldmodel_llm_agent",
 }
 
 
