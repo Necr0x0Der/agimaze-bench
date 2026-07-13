@@ -181,6 +181,8 @@ def run_agent(
         }
         resp = openai_chat_completions(base_url=llm_base_url, api_key=api_key, payload=payload)
         msg = resp["choices"][0]["message"]
+        if verbose and "reasoning_content" in msg:
+            print("<think>", msg["reasoning_content"], "</think>\n")
 
         # tool call
         tcs = msg.get("tool_calls") or []
@@ -192,12 +194,10 @@ def run_agent(
         # fallback: parse plain text
         txt = (msg.get("content") or "").strip().lower()
         reason = f"(WARNING tools are not used, parsed from text): {txt}"
-        for a in actions:
-            if f"action: {a}" in txt:
-                return a, reason
-        for a in actions:
-            if a in txt:
-                return a, reason
+        for pref in ["action: ", '"action": "', "choose: ", "act: ", "act: move_", ""]:
+            for a in actions:
+                if f"{pref}{a}" in txt:
+                    return a, reason
         return random.choice(list(actions)), f"(ERROR no action selected): {txt}"
 
     done = False
@@ -205,6 +205,8 @@ def run_agent(
     last_inv = start.get("inventory")
 
     for step in range(1, int(steps_limit) + 1):
+        if verbose:
+            print(f"[Step {step}]")
         steps = step
         action, reason = choose_action()
 
@@ -213,7 +215,7 @@ def run_agent(
         # If server returns an error (e.g. bad_action), feed it back and continue.
         if out.get("error"):
             if verbose:
-                print(f"[Step {step}] action={action} SERVER_ERROR={out.get('error')} payload={json.dumps(out, ensure_ascii=False)}")
+                print(f"action={action} SERVER_ERROR={out.get('error')} payload={json.dumps(out, ensure_ascii=False)}")
             messages.append({"role": "assistant", "content": f"I choose: {action}"})
             messages.append({"role": "user", "content": f"Server error: {json.dumps(out, ensure_ascii=False)}"})
             continue
@@ -223,7 +225,7 @@ def run_agent(
         last_inv = out.get("inventory")
 
         if verbose:
-            print(f"[Step {step}] action={action} | reason={reason} \n response={text} inv={json.dumps(last_inv or {}, ensure_ascii=False)}")
+            print(f"action={action} | reason={reason} \n response={text} inv={json.dumps(last_inv or {}, ensure_ascii=False)}")
 
         messages.append({"role": "assistant", "content": f"I choose: {action}"})
         messages.append(
