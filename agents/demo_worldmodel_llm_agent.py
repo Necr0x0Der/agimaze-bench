@@ -6,9 +6,11 @@ This is a variant of the planning baseline aimed at reducing prompt bloat.
 Compared to `demo_planning_llm_agent.py`:
 - we keep a *clean* action/observation history (like `demo_simplest_llm_agent.py`)
 - the agent still makes decisions in two phases: PLAN then ACT
-- however, only the **last plan** is carried across steps (not the full list of past plans)
-
-Intuition: the plan acts like an external world model summary that is incrementally updated.
+- however, only the **last plan** (or world state description) is carried across steps
+ (not the full list of past plans) if no_last_plan=False (the plan acts like an external
+ world model summary that is incrementally updated), otherwise the agent acts more
+ like simplest_llm_agent but it is asked to construct the world state description
+ based on the interaction history and then asked to act based on this description.
 
 Environment variables:
 - `OPENAI_API_KEY` or `OPENROUTER_API_KEY`
@@ -38,7 +40,7 @@ def openai_chat_completions(
     base_url: str,
     api_key: str,
     payload: dict,
-    timeout_s: float = 60.0,
+    timeout_s: float = 180.0,
     retries: int = 5,
     backoff_s: float = 0.8,
 ) -> dict:
@@ -92,6 +94,7 @@ def run_agent(
     temperature: float = 0.2,
     agent: str = "worldmodel_llm",
     verbose: bool = True,
+    no_last_plan: bool = True,
 ) -> dict:
     api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
@@ -142,8 +145,7 @@ def run_agent(
         + start_str
         + "\n\n"
         + f"Your inventory: {json.dumps(inv0, ensure_ascii=False)}\n\n"
-        + "You will interact with a partially observable maze by choosing one action each step.\n"
-        + "You should keep and update a compact representation of the current problem state (your external world model summary).\n"
+        + "NOTE: to exit the maze, you should move outside it.\n"
         + "When the server rejects an action, choose another valid action."
     )
 
@@ -166,30 +168,69 @@ def run_agent(
     # Base history: only actions and environment responses (no accumulating plans)
     messages: list[dict] = [
         {"role": "system", "content": sys_prompt},
-        {"role": "user", "content": "Game started. Choose your first action."},
+        {"role": "user", "content": "Game started."},
     ]
 
     last_plan = "(empty)"
 
-    def llm_plan() -> str:
-        payload = {
-            "model": model,
-            "temperature": float(temperature),
-            "messages": messages
-            + [
-                {
-                    "role": "user",
-                    "content": (
-                        "WORLD MODEL UPDATE: You are given your previous world model summary below.\n\n"
-                        f"Previous summary:\n{last_plan}\n\n"
-                        "Update this summary based on the action/observation history so far. "
-                        "Keep it compact and actionable. If uncertain, track possibilities."
-                    ),
-                }
-            ],
-        }
+    def llm_plan(no_last_plan: bool = True) -> str:
+        if no_last_plan:
+            payload = {
+                "model": model,
+                "temperature": float(temperature),
+                "messages": messages
+                + [
+                    {
+                        "role": "user",
+                        "content": (
+                            "Construct a representation of the problem state (world model) given the game description and interaction history, "
+                            "which you will use for action selection"
+                        )
+                    }
+                ]
+            }
+        elif len(messages) <= 2:
+            payload = {
+                "model": model,
+                "temperature": float(temperature),
+                "messages": messages
+                + [
+                    {
+                        "role": "user",
+                        "content": (
+                            "Construct a representation of the problem state (world model), "
+                            "which you will be updating and using for action selection"
+                        )
+                    }
+                ]
+            }
+        else:
+            payload = {
+                "model": model,
+                "temperature": float(temperature),
+                "messages": messages[:-2]
+                + [
+                    {
+                        "role": "assistant",
+                        "content": (
+                            f"My previous world model:\n{last_plan}\nMy last action:\n"
+                        )
+                    },
+                    messages[-2],
+                    {
+                        "role": "user",
+                        "content": (
+                            "Update your world model (don't put action into it - you will be asked to act next) based on the following new action result: "
+                        )
+                    },
+                    messages[-1]
+                ]
+            }
         resp = openai_chat_completions(base_url=llm_base_url, api_key=api_key, payload=payload)
-        return (resp["choices"][0]["message"].get("content") or "").strip()
+        msg = resp["choices"][0]["message"]
+        if verbose and "reasoning_content" in msg:
+            print(f"========== INTERNAL REASONING ==========\n{msg["reasoning_content"]}")
+        return (msg.get("content") or "").strip()
 
     def llm_act(*, plan: str) -> tuple[str, str]:
         payload = {
@@ -198,11 +239,14 @@ def run_agent(
             "messages": messages
             + [
                 {
-                    "role": "user",
+                    "role": "assistant",
                     "content": (
                         "WORLD MODEL SUMMARY (most recent):\n" + plan + "\n\n"
-                        "ACT: choose exactly one action."
                     ),
+                },
+                {
+                    "role": "user",
+                    "content": ( "ACT: perform exactly one action using the tool." )
                 }
             ],
             "tools": [tool],
@@ -218,10 +262,12 @@ def run_agent(
             return str(data.get("action")), str(data.get("reason") or "")
 
         txt = (msg.get("content") or "").strip().lower()
-        for a in actions:
-            if a in txt:
-                return a, "(parsed from text)"
-        return random.choice(list(actions)), "(random fallback)"
+        reason = f"(WARNING tools are not used, parsed from text): {txt}"
+        for pref in ["action: ", '"action": "', "choose: ", "act: ", "act: move_", ""]:
+            for a in actions:
+                if f"{pref}{a}" in txt:
+                    return a, reason
+        return random.choice(list(actions)), f"(ERROR no action selected): {txt}"
 
     done = False
     steps = 0
@@ -229,13 +275,13 @@ def run_agent(
 
     for step in range(1, int(steps_limit) + 1):
         steps = step
-
-        # PLAN (update world model summary using only the previous summary)
-        plan = llm_plan()
+        if verbose:
+            print(f"[Step {step}]")
+        plan = llm_plan(no_last_plan)
         if plan:
             last_plan = plan
         if verbose:
-            print(f"[Step {step}] PLAN: {last_plan[:200]}{'...' if len(last_plan) > 200 else ''}")
+            print(f"============ MODELING STEP ============\n{plan}")
 
         # ACT (use only the current plan)
         action, reason = llm_act(plan=last_plan)
@@ -243,8 +289,8 @@ def run_agent(
 
         if out.get("error"):
             if verbose:
-                print(f"[Step {step}] action={action} SERVER_ERROR={out.get('error')} payload={json.dumps(out, ensure_ascii=False)}")
-            messages.append({"role": "assistant", "content": f"I choose action: {action}. Reason: {reason}"})
+                print(f"action={action} SERVER_ERROR={out.get('error')} payload={json.dumps(out, ensure_ascii=False)}")
+            messages.append({"role": "tool", "content": f"act({action})"})
             messages.append({"role": "user", "content": f"Server error: {json.dumps(out, ensure_ascii=False)}"})
             continue
 
@@ -254,11 +300,14 @@ def run_agent(
 
         if verbose:
             print(
-                f"[Step {step}] action={action} reason={reason} text={text} inv={json.dumps(last_inv or {}, ensure_ascii=False)}"
+                "============ ACTING STEP ============\n",
+                f"action={action} reason={reason}\n",
+                f"response={text}\n",
+                f"inv={json.dumps(last_inv or {}, ensure_ascii=False)}\n"
             )
 
         # Append only action/observation history
-        messages.append({"role": "assistant", "content": f"I choose: {action}"})
+        messages.append({"role": "assistant", "content": f"tool_call: act({action})"})
         messages.append(
             {
                 "role": "user",
@@ -283,6 +332,7 @@ def main() -> None:
     ap = make_base_argparser(default_agent_name="worldmodel_llm")
     ap.add_argument("--model", type=str, default="openrouter/auto")
     ap.add_argument("--temperature", type=float, default=0.2)
+    ap.add_argument("--no_last_plan", type=bool, default=True)
     args = ap.parse_args()
 
     res = run_agent(
@@ -294,6 +344,7 @@ def main() -> None:
         temperature=float(args.temperature),
         agent=args.agent,
         verbose=bool(args.verbose),
+        no_last_plan=args.no_last_plan,
     )
 
     print(json.dumps(res, ensure_ascii=False, indent=2))
