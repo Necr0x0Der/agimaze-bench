@@ -183,7 +183,10 @@ def run_agent(
             ],
         }
         resp = openai_chat_completions(base_url=llm_base_url, api_key=api_key, payload=payload)
-        return (resp["choices"][0]["message"].get("content") or "").strip()
+        msg = resp["choices"][0]["message"]
+        if verbose and "reasoning_content" in msg:
+            print(f"========== INTERNAL REASONING ==========\n{msg["reasoning_content"]}")
+        return (msg.get("content") or "").strip()
 
     def llm_act() -> tuple[str, str]:
         payload = {
@@ -211,12 +214,10 @@ def run_agent(
         # fallback
         txt = (msg.get("content") or "").strip().lower()
         reason = f"(NO TOOL USE, parsed from text) {txt}"
-        for a in actions:
-            if f"action: {a}" in txt:
-                return a, reason
-        for a in actions:
-            if a in txt:
-                return a, reason
+        for pref in ["action: ", '"action": "', "choose: ", "act: ", "act: move_", ""]:
+            for a in actions:
+                if f"{pref}{a}" in txt:
+                    return a, reason
         return random.choice(list(actions)), f"(NO ACTION SELECTED, random fallback) {txt}"
 
     done = False
@@ -225,6 +226,8 @@ def run_agent(
 
     for step in range(1, int(steps_limit) + 1):
         steps = step
+        if verbose:
+            print(f"[Step {step}]")
 
         # PLAN phase
         plan = llm_plan()
@@ -237,9 +240,7 @@ def run_agent(
 
         if out.get("error"):
             if verbose:
-                print(
-                    f"[Step {step}] action={action} SERVER_ERROR={out.get('error')} payload={json.dumps(out, ensure_ascii=False)}"
-                )
+                print(f"action={action} SERVER_ERROR={out.get('error')} payload={json.dumps(out, ensure_ascii=False)}")
             messages.append({"role": "assistant", "content": f"I choose action: {action}. Reason: {reason}"})
             messages.append({"role": "user", "content": f"Server error: {json.dumps(out, ensure_ascii=False)}"})
             continue
@@ -250,8 +251,7 @@ def run_agent(
 
         if verbose:
             print(
-                f'''[Step {step}]
-============ PLANNING STEP ============
+                f'''============ PLANNING STEP ============
 {plan}
 ============ ACTING STEP ============
 action={action} reason={reason}
