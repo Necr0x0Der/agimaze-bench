@@ -171,3 +171,15 @@ Additional results:
 * S:GLM-4.7-flash: 12%(0%) on S0-3, 0% on S3-3
 * P:GPT-5.5: 1/3 on S3-6
 
+### Simple world-modeling agents
+While "planning LLM agent" appeared to be relatively weak, because its own plans, alternated with actions/observations in the message history, acted as nuisance. [World-modeling LLM agent](../agents/demo_worldmodel_llm_agent.py) keeps the action/observation history clean and maintains and updates the world state description at the end of its prompt. This helped the agent (running with Gemini 3.5 Flash) to achieve the following results
+
+| Stage | Size | soft_good_steps | hard_max_steps | success | good | late |
+|------:|------|----------------:|---------------:|--------:|-----:|-----:|
+| S0-04 | 5x5 | 125 | 250 | 100 | 100 | 0 |
+| S0-05 | 5x5 | 125 | 250 | 100 | 100 | 0 |
+| S0-06 | 4x6 | 125 | 250 | 100 | 90 | 10 |
+| S3-03 | 4x5 | 100 | 200 | 90 | 50 | 40 |
+| S3-06 | 4x6 | 125 | 250 | 70 | 30 | 40 |
+
+The results are nealy perfect for average-size (~5x5) mazes without rivers and pits, and are relatively good (far beyond humans, but unachievalbe without some understanding of such the mazes) for the hardest among the simplest (**TRAINING**) mazes. It's still early to test LLM-agents on more complex (**CLASSIC** and **EXTENDED**) mazes.

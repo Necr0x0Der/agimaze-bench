@@ -94,7 +94,7 @@ def run_agent(
     temperature: float = 0.2,
     agent: str = "worldmodel_llm",
     verbose: bool = True,
-    no_last_plan: bool = True,
+    no_last_plan: bool = False,
 ) -> dict:
     api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
