@@ -40,6 +40,11 @@ Compared to `demo_simplest_llm_agent.py`:
 
 Use it when you want a stronger (but still simple) baseline without adding external memory/state.
 
+### `demo_worldmodel_llm_agent.py`
+This agent is similar to `planning`, but it is asked not to plan, but to construct a world model (description of the current environment state) to use it for action selection. Also, it doesn't put its previous conclusions into the message (action/observation) history. Instead, it updates the last notes (world state description) from the previous step. So, it's prompt looks like ([A] - action, [O] - observation)
+`[GAME DESCRIPTION][A][O]...[A][O][PREV STATE][A][O][P1]`, where in `[P1]` it is asked to produce `[NEW STATE]` based on the previous state and the new action-observation pair, then it receives `[GAME DESCRIPTION][A][O]...[A][O][A][O][NEW STATE][P2]`, where in `[P2]` it is asked to select a new action based on the latest state.
+The agent can also be called with the flag `no_last_plan = True`. In this case, it will try to construct a new plan / world state description from scratch each time (which can be used to emulate reasoning for non-reasoning agents).
+
 ## Shared helpers
 
 To keep all agents consistent, the `agents/` folder also contains shared utilities:
